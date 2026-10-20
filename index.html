@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ompliment d'Orbitals - Regla d'Aufbau</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            user-select: none;
+        }
+
+        /* Colors dels blocs s, p, d, f */
+        .bg-s-block { background-color: #fbcfe8; border-color: #f472b6; color: #831843; } /* Rosa */
+        .bg-p-block { background-color: #99f6e4; border-color: #2dd4bf; color: #134e4a; } /* Turquesa */
+        .bg-d-block { background-color: #d9f99d; border-color: #a3e635; color: #365314; } /* Verd llima */
+        .bg-f-block { background-color: #c7d2fe; border-color: #818cf8; color: #1e1b4b; } /* Lavanda */
+
+        /* Colors d'alt contrast per als nivells n (1 a 7) */
+        .n-badge-1 { background-color: #475569; color: #ffffff; }
+        .n-badge-2 { background-color: #2563eb; color: #ffffff; }
+        .n-badge-3 { background-color: #059669; color: #ffffff; }
+        .n-badge-4 { background-color: #d97706; color: #ffffff; }
+        .n-badge-5 { background-color: #7c3aed; color: #ffffff; }
+        .n-badge-6 { background-color: #db2777; color: #ffffff; }
+        .n-badge-7 { background-color: #0891b2; color: #ffffff; }
+
+        /* Caselles d'orbital */
+        .orbital-box {
+            width: 20px;
+            height: 20px;
+            border: 1.5px solid #475569;
+            background-color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 11px;
+            line-height: 1;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+            z-index: 10; /* Per davant de la línia vermella */
+            position: relative;
+            border-radius: 2px;
+        }
+
+        .orbital-box.active-fill {
+            border-color: #ef4444;
+            box-shadow: 0 0 6px rgba(239, 68, 68, 0.8);
+            transform: scale(1.05);
+        }
+
+        /* Taula periòdica ultra-compacta */
+        .pt-grid {
+            display: grid;
+            grid-template-columns: repeat(18, minmax(0, 1fr));
+            gap: 1.5px;
+            height: 100%;
+        }
+
+        .pt-element {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 8px;
+            line-height: 1;
+            cursor: pointer;
+            border-radius: 2px;
+            border: 1px solid rgba(0,0,0,0.12);
+            transition: transform 0.1s, box-shadow 0.1s;
+            height: 100%;
+            min-height: 0;
+        }
+
+        .pt-element:hover {
+            transform: scale(1.25);
+            z-index: 30;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        }
+
+        .pt-element.selected {
+            outline: 2px solid #000;
+            font-weight: bold;
+            transform: scale(1.15);
+            z-index: 25;
+            box-shadow: 0 0 6px rgba(0,0,0,0.4);
+        }
+
+        /* Línia esvaïda interactiva */
+        #laser-line {
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background-color: rgba(239, 68, 68, 0.5);
+            box-shadow: 0 0 6px rgba(239, 68, 68, 0.4);
+            z-index: 2; /* Darrere les caselles (z-index: 10) */
+            pointer-events: none;
+            transition: top 0.12s ease-out;
+        }
+
+        /* Badge ubicat per davall de la línia a la dreta */
+        #sublevel-badge {
+            position: absolute;
+            right: 8px;
+            top: 5px;
+            background-color: #ef4444;
+            color: white;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 9999px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            white-space: nowrap;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 flex flex-col h-screen w-screen overflow-hidden select-none">
+
+    <!-- BARRA SUPERIOR DE CONTROLS -->
+    <header class="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between shrink-0 shadow-sm">
+        <div class="flex items-center space-x-3">
+            <h1 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                <span class="bg-blue-600 text-white px-2 py-0.5 rounded text-xs">Aufbau</span>
+                Esquema d'Ompliment d'Orbitals
+            </h1>
+            <div class="h-4 w-px bg-slate-300"></div>
+            <!-- Selecció Mode Teòric vs Real -->
+            <div class="flex items-center bg-slate-100 p-1 rounded-lg text-xs border border-slate-200">
+                <button id="btn-mode-aufbau" onclick="setMode('aufbau')" class="px-2 py-1 rounded-md font-medium transition-colors bg-white text-blue-600 shadow-sm">Teòric (Aufbau)</button>
+                <button id="btn-mode-real" onclick="setMode('real')" class="px-2 py-1 rounded-md font-medium text-slate-600 hover:text-slate-900 transition-colors">Real (Experimental)</button>
+            </div>
+        </div>
+
+        <!-- Controls de reproducció i selector de Z -->
+        <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-1">
+                <button onclick="changeZ(-1)" class="w-7 h-7 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded text-slate-700 font-bold">-1</button>
+                <button id="btn-play" onclick="togglePlay()" class="px-3 h-7 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium text-xs flex items-center gap-1">
+                    <span id="play-icon">▶</span> Reprodueix
+                </button>
+                <button onclick="changeZ(1)" class="w-7 h-7 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded text-slate-700 font-bold">+1</button>
+            </div>
+
+            <div class="flex items-center space-x-2">
+                <span class="text-xs font-semibold text-slate-500">Z:</span>
+                <input type="range" id="z-slider" min="1" max="118" value="1" oninput="setZ(parseInt(this.value))" class="w-32 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+                <span id="z-display" class="w-8 text-sm font-bold text-blue-600 text-right">1</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- CONTINGUT PRINCIPAL (FIT-TO-SCREEN) -->
+    <main class="flex-1 flex overflow-hidden p-2 gap-2">
+
+        <!-- COLUMNA ESQUERRA: ESQUEMA D'ORBITALS (AMPLADA 520px PER CABRE TOT EL BLOC F) -->
+        <section class="w-[520px] bg-white rounded-lg border border-slate-200 p-3 flex flex-col justify-between relative shadow-sm overflow-hidden shrink-0" id="diagram-container">
+            
+            <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex justify-between items-center">
+                <span>Subnivells Energètics</span>
+                <span class="text-[10px] text-slate-400">Energia Creixent ↑</span>
+            </div>
+
+            <!-- Línia Vermella Dinàmica -->
+            <div id="laser-line">
+                <div id="sublevel-badge">Actual: <span id="badge-curr">1s</span> | Següent: <span id="badge-next">2s</span></div>
+            </div>
+
+            <!-- Contenidor dels 19 nivells -->
+            <div class="flex-1 flex flex-col justify-between py-1 relative z-10" id="levels-wrapper">
+                <!-- Generat dinàmicament per JS (7p -> 1s) -->
+            </div>
+
+            <!-- Llegenda de Colors dels Nivells Principals (n=1 a 7) -->
+            <div class="border-t border-slate-100 pt-2 shrink-0">
+                <div class="text-[9px] font-bold text-slate-400 mb-1 text-center">NIVELLS ENERGÈTICS PRINCIPALS (n)</div>
+                <div class="flex justify-between text-[9px] font-bold px-1">
+                    <span class="px-2 py-0.5 rounded n-badge-1">n=1</span>
+                    <span class="px-2 py-0.5 rounded n-badge-2">n=2</span>
+                    <span class="px-2 py-0.5 rounded n-badge-3">n=3</span>
+                    <span class="px-2 py-0.5 rounded n-badge-4">n=4</span>
+                    <span class="px-2 py-0.5 rounded n-badge-5">n=5</span>
+                    <span class="px-2 py-0.5 rounded n-badge-6">n=6</span>
+                    <span class="px-2 py-0.5 rounded n-badge-7">n=7</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- COLUMNA DRETA: DETALLS + TAULA PERIÒDICA -->
+        <section class="flex-1 flex flex-col gap-2 overflow-hidden min-w-0">
+
+            <!-- CARD ELEMENT I NÚMEROS CUÀNTICS -->
+            <div class="bg-white rounded-lg border border-slate-200 p-3 shadow-sm flex gap-3 shrink-0">
+                <div id="elem-card-bg" class="w-20 h-20 rounded-lg bg-s-block border border-pink-300 flex flex-col items-center justify-center shrink-0">
+                    <span id="elem-z" class="text-[10px] text-slate-500 self-start px-1 font-bold">1</span>
+                    <span id="elem-symbol" class="text-2xl font-black leading-none">H</span>
+                    <span id="elem-name" class="text-[10px] font-semibold truncate max-w-[70px] mt-1">Hidrogen</span>
+                </div>
+
+                <div class="flex-1 flex flex-col justify-between min-w-0">
+                    <div>
+                        <div class="flex justify-between items-baseline">
+                            <h2 id="elem-title-full" class="text-sm font-bold text-slate-800 truncate">1 - Hidrogen (H)</h2>
+                            <span id="exception-tag" class="hidden text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded border border-amber-300">Excepció Real</span>
+                        </div>
+                        <div class="text-[11px] text-slate-600 mt-0.5">
+                            <span class="font-semibold text-slate-400">Config:</span> 
+                            <span id="config-text" class="font-mono text-blue-700 font-bold">1s¹</span>
+                        </div>
+                        <div class="text-[10px] text-slate-500 truncate">
+                            <span class="font-semibold text-slate-400">Abreviada:</span> 
+                            <span id="config-short" class="font-mono">1s¹</span>
+                        </div>
+                    </div>
+
+                    <!-- Números quàntics de l'últim electró -->
+                    <div class="bg-slate-50 p-1.5 rounded border border-slate-200 flex justify-around text-center">
+                        <div><div class="text-[9px] text-slate-400 font-bold">n</div><div id="nq-n" class="text-xs font-bold text-slate-700">1</div></div>
+                        <div><div class="text-[9px] text-slate-400 font-bold">l</div><div id="nq-l" class="text-xs font-bold text-slate-700">0 (s)</div></div>
+                        <div><div class="text-[9px] text-slate-400 font-bold">mₗ</div><div id="nq-ml" class="text-xs font-bold text-slate-700">0</div></div>
+                        <div><div class="text-[9px] text-slate-400 font-bold">mₛ</div><div id="nq-ms" class="text-xs font-bold text-slate-700">+½</div></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- EXPLICACIÓ DIDÀCTICA -->
+            <div id="note-box" class="bg-blue-50 border border-blue-200 rounded-lg p-2 text-[11px] text-blue-900 leading-tight shrink-0">
+                <span class="font-bold">Principi d'Aufbau:</span> Els orbitals s'omplen progressivament en ordre creixent d'energia (n+l). L'últim electró afegit determina les propietats mecano-quàntiques de l'element.
+            </div>
+
+            <!-- TAULA PERIÒDICA AMB LLEGENDA PRÒPIA DE BLOCS (s, p, d, f) -->
+            <div class="bg-white rounded-lg border border-slate-200 p-2 shadow-sm flex-1 flex flex-col justify-between overflow-hidden min-h-0">
+                <div class="flex justify-between items-center mb-1 shrink-0">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Taula Periòdica dels Elements</span>
+                    
+                    <!-- Llegenda de Blocs s, p, d, f -->
+                    <div class="flex gap-2 text-[10px] font-semibold">
+                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded bg-s-block border border-pink-400"></span> bloc s</span>
+                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded bg-p-block border border-teal-400"></span> bloc p</span>
+                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded bg-d-block border border-lime-400"></span> bloc d</span>
+                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded bg-f-block border border-indigo-400"></span> bloc f</span>
+                    </div>
+                </div>
+
+                <div class="pt-grid flex-1 items-center" id="periodic-table">
+                    <!-- Generat per JS -->
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <script>
+        // Dades dels 118 elements
+        const ELEMENTS = [
+            { z: 1, s: "H", n: "Hidrogen", b: "s", r: 1, c: 1 },
+            { z: 2, s: "He", n: "Heli", b: "s", r: 1, c: 18 },
+            { z: 3, s: "Li", n: "Liti", b: "s", r: 2, c: 1 },
+            { z: 4, s: "Be", n: "Beril·li", b: "s", r: 2, c: 2 },
+            { z: 5, s: "B", n: "Bor", b: "p", r: 2, c: 13 },
+            { z: 6, s: "C", n: "Carboni", b: "p", r: 2, c: 14 },
+            { z: 7, s: "N", n: "Nitrogen", b: "p", r: 2, c: 15 },
+            { z: 8, s: "O", n: "Oxigen", b: "p", r: 2, c: 16 },
+            { z: 9, s: "F", n: "Flúor", b: "p", r: 2, c: 17 },
+            { z: 10, s: "Ne", n: "Neó", b: "p", r: 2, c: 18 },
+            { z: 11, s: "Na", n: "Sodi", b: "s", r: 3, c: 1 },
+            { z: 12, s: "Mg", n: "Magnesi", b: "s", r: 3, c: 2 },
+            { z: 13, s: "Al", n: "Alumini", b: "p", r: 3, c: 13 },
+            { z: 14, s: "Si", n: "Silici", b: "p", r: 3, c: 14 },
+            { z: 15, s: "P", n: "Fòsfor", b: "p", r: 3, c: 15 },
+            { z: 16, s: "S", n: "Sofre", b: "p", r: 3, c: 16 },
+            { z: 17, s: "Cl", n: "Clor", b: "p", r: 3, c: 17 },
+            { z: 18, s: "Ar", n: "Argó", b: "p", r: 3, c: 18 },
+            { z: 19, s: "K", n: "Potassi", b: "s", r: 4, c: 1 },
+            { z: 20, s: "Ca", n: "Calci", b: "s", r: 4, c: 2 },
+            { z: 21, s: "Sc", n: "Escandi", b: "d", r: 4, c: 3 },
+            { z: 22, s: "Ti", n: "Titani", b: "d", r: 4, c: 4 },
+            { z: 23, s: "V", n: "Vanadi", b: "d", r: 4, c: 5 },
+            { z: 24, s: "Cr", n: "Crom", b: "d", r: 4, c: 6, exp: "4s¹ 3d⁵ (Subcapa d semi-plena especialment estable)" },
+            { z: 25, s: "Mn", n: "Manganès", b: "d", r: 4, c: 7 },
+            { z: 26, s: "Fe", n: "Ferro", b: "d", r: 4, c: 8 },
+            { z: 27, s: "Co", n: "Cobalt", b: "d", r: 4, c: 9 },
+            { z: 28, s: "Ni", n: "Níquel", b: "d", r: 4, c: 10 },
+            { z: 29, s: "Cu", n: "Coure", b: "d", r: 4, c: 11, exp: "4s¹ 3d¹⁰ (Subcapa d completament plena)" },
+            { z: 30, s: "Zn", n: "Cinc", b: "d", r: 4, c: 12 },
+            { z: 31, s: "Ga", n: "Gal·li", b: "p", r: 4, c: 13 },
+            { z: 32, s: "Ge", n: "Germani", b: "p", r: 4, c: 14 },
+            { z: 33, s: "As", n: "Arsènic", b: "p", r: 4, c: 15 },
+            { z: 34, s: "Se", n: "Seleni", b: "p", r: 4, c: 16 },
+            { z: 35, s: "Br", n: "Brom", b: "p", r: 4, c: 17 },
+            { z: 36, s: "Kr", n: "Criptó", b: "p", r: 4, c: 18 },
+            { z: 37, s: "Rb", n: "Rubidi", b: "s", r: 5, c: 1 },
+            { z: 38, s: "Sr", n: "Estronci", b: "s", r: 5, c: 2 },
+            { z: 39, s: "Y", n: "Itri", b: "d", r: 5, c: 3 },
+            { z: 40, s: "Zr", n: "Zirconi", b: "d", r: 5, c: 4 },
+            { z: 41, s: "Nb", n: "Niobi", b: "d", r: 5, c: 5, exp: "5s¹ 4d⁴" },
+            { z: 42, s: "Mo", n: "Molibdè", b: "d", r: 5, c: 6, exp: "5s¹ 4d⁵" },
+            { z: 43, s: "Tc", n: "Tecneci", b: "d", r: 5, c: 7 },
+            { z: 44, s: "Ru", n: "Ruteni", b: "d", r: 5, c: 8, exp: "5s¹ 4d⁷" },
+            { z: 45, s: "Rh", n: "Rodi", b: "d", r: 5, c: 9, exp: "5s¹ 4d⁸" },
+            { z: 46, s: "Pd", n: "Pal·ladi", b: "d", r: 5, c: 10, exp: "5s⁰ 4d¹⁰ (Promoció de 2 e- de 5s a 4d)" },
+            { z: 47, s: "Ag", n: "Argent", b: "d", r: 5, c: 11, exp: "5s¹ 4d¹⁰" },
+            { z: 48, s: "Cd", n: "Cadmi", b: "d", r: 5, c: 12 },
+            { z: 49, s: "In", n: "Indi", b: "p", r: 5, c: 13 },
+            { z: 50, s: "Sn", n: "Estany", b: "p", r: 5, c: 14 },
+            { z: 51, s: "Sb", n: "Antimoni", b: "p", r: 5, c: 15 },
+            { z: 52, s: "Te", n: "Tel·luri", b: "p", r: 5, c: 16 },
+            { z: 53, s: "I", n: "Iode", b: "p", r: 5, c: 17 },
+            { z: 54, s: "Xe", n: "Xenó", b: "p", r: 5, c: 18 },
+            { z: 55, s: "Cs", n: "Cesi", b: "s", r: 6, c: 1 },
+            { z: 56, s: "Ba", n: "Bari", b: "s", r: 6, c: 2 },
+            { z: 57, s: "La", n: "Llàntan", b: "f", r: 8, c: 3, exp: "6s² 5d¹" },
+            { z: 58, s: "Ce", n: "Ceri", b: "f", r: 8, c: 4 },
+            { z: 59, s: "Pr", n: "Praseodimi", b: "f", r: 8, c: 5 },
+            { z: 60, s: "Nd", n: "Neodimi", b: "f", r: 8, c: 6 },
+            { z: 61, s: "Pm", n: "Prometi", b: "f", r: 8, c: 7 },
+            { z: 62, s: "Sm", n: "Samari", b: "f", r: 8, c: 8 },
+            { z: 63, s: "Eu", n: "Europi", b: "f", r: 8, c: 9 },
+            { z: 64, s: "Gd", n: "Gadolini", b: "f", r: 8, c: 10, exp: "6s² 4f⁷ 5d¹" },
+            { z: 65, s: "Tb", n: "Terbi", b: "f", r: 8, c: 11 },
+            { z: 66, s: "Dy", n: "Disprosi", b: "f", r: 8, c: 12 },
+            { z: 67, s: "Ho", n: "Holmi", b: "f", r: 8, c: 13 },
+            { z: 68, s: "Er", n: "Erbi", b: "f", r: 8, c: 14 },
+            { z: 69, s: "Tm", n: "Tuli", b: "f", r: 8, c: 15 },
+            { z: 70, s: "Yb", n: "Iterbi", b: "f", r: 8, c: 16 },
+            { z: 71, s: "Lu", n: "Luteci", b: "f", r: 8, c: 17 },
+            { z: 72, s: "Hf", n: "Hafni", b: "d", r: 6, c: 4 },
+            { z: 73, s: "Ta", n: "Tàntal", b: "d", r: 6, c: 5 },
+            { z: 74, s: "W", n: "Tungstè", b: "d", r: 6, c: 6 },
+            { z: 75, s: "Re", n: "Reni", b: "d", r: 6, c: 7 },
+            { z: 76, s: "Os", n: "Osmi", b: "d", r: 6, c: 8 },
+            { z: 77, s: "Ir", n: "Iridi", b: "d", r: 6, c: 9 },
+            { z: 78, s: "Pt", n: "Platí", b: "d", r: 6, c: 10, exp: "6s¹ 4f¹⁴ 5d⁹" },
+            { z: 79, s: "Au", n: "Or", b: "d", r: 6, c: 11, exp: "6s¹ 4f¹⁴ 5d¹⁰" },
+            { z: 80, s: "Hg", n: "Mercuri", b: "d", r: 6, c: 12 },
+            { z: 81, s: "Tl", n: "Tal·li", b: "p", r: 6, c: 13 },
+            { z: 82, s: "Pb", n: "Plom", b: "p", r: 6, c: 14 },
+            { z: 83, s: "Bi", n: "Bismut", b: "p", r: 6, c: 15 },
+            { z: 84, s: "Po", n: "Poloni", b: "p", r: 6, c: 16 },
+            { z: 85, s: "At", n: "Àstat", b: "p", r: 6, c: 17 },
+            { z: 86, s: "Rn", n: "Radó", b: "p", r: 6, c: 18 },
+            { z: 87, s: "Fr", n: "Franci", b: "s", r: 7, c: 1 },
+            { z: 88, s: "Ra", n: "Radi", b: "s", r: 7, c: 2 },
+            { z: 89, s: "Ac", n: "Actini", b: "f", r: 9, c: 3, exp: "7s² 6d¹" },
+            { z: 90, s: "Th", n: "Tori", b: "f", r: 9, c: 4, exp: "7s² 6d²" },
+            { z: 91, s: "Pa", n: "Protactini", b: "f", r: 9, c: 5 },
+            { z: 92, s: "U", n: "Urani", b: "f", r: 9, c: 6 },
+            { z: 93, s: "Np", n: "Neptuni", b: "f", r: 9, c: 7 },
+            { z: 94, s: "Pu", n: "Plutoni", b: "f", r: 9, c: 8 },
+            { z: 95, s: "Am", n: "Americi", b: "f", r: 9, c: 9 },
+            { z: 96, s: "Cm", n: "Curi", b: "f", r: 9, c: 10 },
+            { z: 97, s: "Bk", n: "Berkeli", b: "f", r: 9, c: 11 },
+            { z: 98, s: "Cf", n: "Californi", b: "f", r: 9, c: 12 },
+            { z: 99, s: "Es", n: "Einsteini", b: "f", r: 9, c: 13 },
+            { z: 100, s: "Fm", n: "Fermi", b: "f", r: 9, c: 14 },
+            { z: 101, s: "Md", n: "Mendelevi", b: "f", r: 9, c: 15 },
+            { z: 102, s: "No", n: "Nobeli", b: "f", r: 9, c: 16 },
+            { z: 103, s: "Lr", n: "Lawrenci", b: "f", r: 9, c: 17 },
+            { z: 104, s: "Rf", n: "Rutherfordi", b: "d", r: 7, c: 4 },
+            { z: 105, s: "Db", n: "Dubni", b: "d", r: 7, c: 5 },
+            { z: 106, s: "Sg", n: "Seaborgi", b: "d", r: 7, c: 6 },
+            { z: 107, s: "Bh", n: "Bohri", b: "d", r: 7, c: 7 },
+            { z: 108, s: "Hs", n: "Hassi", b: "d", r: 7, c: 8 },
+            { z: 109, s: "Mt", n: "Meitneri", b: "d", r: 7, c: 9 },
+            { z: 110, s: "Ds", n: "Darmstadti", b: "d", r: 7, c: 10 },
+            { z: 111, s: "Rg", n: "Roentgeni", b: "d", r: 7, c: 11 },
+            { z: 112, s: "Cn", n: "Copernici", b: "d", r: 7, c: 12 },
+            { z: 113, s: "Nh", n: "Nihoni", b: "p", r: 7, c: 13 },
+            { z: 114, s: "Fl", n: "Flerovi", b: "p", r: 7, c: 14 },
+            { z: 115, s: "Mc", n: "Moscovi", b: "p", r: 7, c: 15 },
+            { z: 116, s: "Lv", n: "Livermori", b: "p", r: 7, c: 16 },
+            { z: 117, s: "Ts", n: "Tennessi", b: "p", r: 7, c: 17 },
+            { z: 118, s: "Og", n: "Oganessó", b: "p", r: 7, c: 18 }
+        ];
+
+        // Ordre d'Aufbau (19 subnivells)
+        const SUBLEVELS = [
+            { id: "1s", type: "s", boxes: 1, cap: 2,  n: 1, l: 0, firstZ: 1 },
+            { id: "2s", type: "s", boxes: 1, cap: 2,  n: 2, l: 0, firstZ: 3 },
+            { id: "2p", type: "p", boxes: 3, cap: 6,  n: 2, l: 1, firstZ: 5 },
+            { id: "3s", type: "s", boxes: 1, cap: 2,  n: 3, l: 0, firstZ: 11 },
+            { id: "3p", type: "p", boxes: 3, cap: 6,  n: 3, l: 1, firstZ: 13 },
+            { id: "4s", type: "s", boxes: 1, cap: 2,  n: 4, l: 0, firstZ: 19 },
+            { id: "3d", type: "d", boxes: 5, cap: 10, n: 3, l: 2, firstZ: 21 },
+            { id: "4p", type: "p", boxes: 3, cap: 6,  n: 4, l: 1, firstZ: 31 },
+            { id: "5s", type: "s", boxes: 1, cap: 2,  n: 5, l: 0, firstZ: 37 },
+            { id: "4d", type: "d", boxes: 5, cap: 10, n: 4, l: 2, firstZ: 39 },
+            { id: "5p", type: "p", boxes: 3, cap: 6,  n: 5, l: 1, firstZ: 49 },
+            { id: "6s", type: "s", boxes: 1, cap: 2,  n: 6, l: 0, firstZ: 55 },
+            { id: "4f", type: "f", boxes: 7, cap: 14, n: 4, l: 3, firstZ: 57 },
+            { id: "5d", type: "d", boxes: 5, cap: 10, n: 5, l: 2, firstZ: 71 },
+            { id: "6p", type: "p", boxes: 3, cap: 6,  n: 6, l: 1, firstZ: 81 },
+            { id: "7s", type: "s", boxes: 1, cap: 2,  n: 7, l: 0, firstZ: 87 },
+            { id: "5f", type: "f", boxes: 7, cap: 14, n: 5, l: 3, firstZ: 89 },
+            { id: "6d", type: "d", boxes: 5, cap: 10, n: 6, l: 2, firstZ: 103 },
+            { id: "7p", type: "p", boxes: 3, cap: 6,  n: 7, l: 1, firstZ: 113 }
+        ];
+
+        const NOBLE_GASES = [
+            { z: 2, s: "He" }, { z: 10, s: "Ne" }, { z: 18, s: "Ar" },
+            { z: 36, s: "Kr" }, { z: 54, s: "Xe" }, { z: 86, s: "Rn" }
+        ];
+
+        let currentZ = 1;
+        let mode = 'aufbau';
+        let isPlaying = false;
+        let playInterval = null;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            renderLevelsDiagram();
+            renderPeriodicTable();
+            updateSimulation();
+        });
+
+        function renderLevelsDiagram() {
+            const wrapper = document.getElementById('levels-wrapper');
+            wrapper.innerHTML = '';
+
+            [...SUBLEVELS].reverse().forEach(sub => {
+                const row = document.createElement('div');
+                row.className = `flex items-center gap-1.5 h-5 text-xs font-semibold px-1 rounded hover:bg-slate-100 cursor-pointer transition-colors`;
+                row.id = `sublevel-row-${sub.id}`;
+                row.onclick = () => selectSublevelDirectly(sub.id);
+
+                const nTag = document.createElement('span');
+                nTag.className = `text-[9px] font-extrabold px-1 py-0.2 rounded shadow-sm shrink-0 n-badge-${sub.n}`;
+                nTag.innerText = `n=${sub.n}`;
+
+                const label = document.createElement('span');
+                label.className = `w-5 text-right font-mono font-bold text-slate-700 shrink-0`;
+                label.innerText = sub.id;
+
+                const boxesDiv = document.createElement('div');
+                boxesDiv.className = `flex gap-1 items-center`;
+                
+                // Marges esquerra per formar 4 columnes alineades (s, p, d, f)
+                let indent = "ml-0";
+                if(sub.type === 'p') indent = "ml-8";
+                if(sub.type === 'd') indent = "ml-[105px]";
+                if(sub.type === 'f') indent = "ml-[200px]";
+                boxesDiv.classList.add(indent);
+
+                for (let i = 0; i < sub.boxes; i++) {
+                    const box = document.createElement('div');
+                    box.className = `orbital-box bg-${sub.type}-block`;
+                    box.id = `box-${sub.id}-${i}`;
+                    boxesDiv.appendChild(box);
+                }
+
+                row.appendChild(nTag);
+                row.appendChild(label);
+                row.appendChild(boxesDiv);
+                wrapper.appendChild(row);
+            });
+        }
+
+        function renderPeriodicTable() {
+            const ptContainer = document.getElementById('periodic-table');
+            ptContainer.innerHTML = '';
+
+            const gridCells = {};
+            ELEMENTS.forEach(el => { gridCells[`${el.r}-${el.c}`] = el; });
+
+            for (let r = 1; r <= 9; r++) {
+                if(r === 8) {
+                    for(let c=1; c<=18; c++) {
+                        const spacer = document.createElement('div');
+                        spacer.className = "h-1 col-span-18";
+                        if(c===1) ptContainer.appendChild(spacer);
+                    }
+                }
+
+                for (let c = 1; c <= 18; c++) {
+                    const el = gridCells[`${r}-${c}`];
+                    const cell = document.createElement('div');
+
+                    if (el) {
+                        cell.className = `pt-element bg-${el.b}-block ${el.z === currentZ ? 'selected' : ''}`;
+                        cell.id = `pt-elem-${el.z}`;
+                        cell.onclick = () => setZ(el.z);
+                        cell.innerHTML = `<span class="text-[6px] opacity-70">${el.z}</span><span class="font-bold text-[9px]">${el.s}</span>`;
+                    } else {
+                        cell.className = 'opacity-0 pointer-events-none';
+                    }
+
+                    ptContainer.appendChild(cell);
+                }
+            }
+        }
+
+        function calculateElectronCounts(zTarget) {
+            const counts = {};
+            SUBLEVELS.forEach(s => counts[s.id] = 0);
+
+            if (mode === 'aufbau') {
+                let remaining = zTarget;
+                for (let sub of SUBLEVELS) {
+                    if (remaining <= 0) break;
+                    const fill = Math.min(remaining, sub.cap);
+                    counts[sub.id] = fill;
+                    remaining -= fill;
+                }
+            } else {
+                let remaining = zTarget;
+                for (let sub of SUBLEVELS) {
+                    if (remaining <= 0) break;
+                    const fill = Math.min(remaining, sub.cap);
+                    counts[sub.id] = fill;
+                    remaining -= fill;
+                }
+
+                // Excepcions reals
+                if (zTarget === 24) { counts['4s'] = 1; counts['3d'] = 5; }
+                else if (zTarget === 29) { counts['4s'] = 1; counts['3d'] = 10; }
+                else if (zTarget === 41) { counts['5s'] = 1; counts['4d'] = 4; }
+                else if (zTarget === 42) { counts['5s'] = 1; counts['4d'] = 5; }
+                else if (zTarget === 44) { counts['5s'] = 1; counts['4d'] = 7; }
+                else if (zTarget === 45) { counts['5s'] = 1; counts['4d'] = 8; }
+                else if (zTarget === 46) { counts['5s'] = 0; counts['4d'] = 10; }
+                else if (zTarget === 47) { counts['5s'] = 1; counts['4d'] = 10; }
+                else if (zTarget === 57) { counts['6s'] = 2; counts['4f'] = 0; counts['5d'] = 1; }
+                else if (zTarget === 64) { counts['6s'] = 2; counts['4f'] = 7; counts['5d'] = 1; }
+                else if (zTarget === 78) { counts['6s'] = 1; counts['4f'] = 14; counts['5d'] = 9; }
+                else if (zTarget === 79) { counts['6s'] = 1; counts['4f'] = 14; counts['5d'] = 10; }
+                else if (zTarget === 89) { counts['7s'] = 2; counts['5f'] = 0; counts['6d'] = 1; }
+                else if (zTarget === 90) { counts['7s'] = 2; counts['5f'] = 0; counts['6d'] = 2; }
+            }
+
+            return counts;
+        }
+
+        function updateSimulation() {
+            document.getElementById('z-slider').value = currentZ;
+            document.getElementById('z-display').innerText = currentZ;
+
+            const elem = ELEMENTS.find(e => e.z === currentZ);
+            document.getElementById('elem-z').innerText = elem.z;
+            document.getElementById('elem-symbol').innerText = elem.s;
+            document.getElementById('elem-name').innerText = elem.n;
+            document.getElementById('elem-title-full').innerText = `${elem.z} - ${elem.n} (${elem.s})`;
+
+            const cardBg = document.getElementById('elem-card-bg');
+            cardBg.className = `w-20 h-20 rounded-lg bg-${elem.b}-block border flex flex-col items-center justify-center shrink-0 shadow-inner`;
+
+            const expTag = document.getElementById('exception-tag');
+            const noteBox = document.getElementById('note-box');
+            if (mode === 'real' && elem.exp) {
+                expTag.classList.remove('hidden');
+                noteBox.innerHTML = `<span class="font-bold text-amber-800">Excepció Experimental (${elem.s}):</span> ${elem.exp}`;
+                noteBox.className = "bg-amber-50 border border-amber-200 rounded-lg p-2 text-[11px] text-amber-900 leading-tight shrink-0";
+            } else {
+                expTag.classList.add('hidden');
+                noteBox.innerHTML = `<span class="font-bold text-blue-900">Principi d'Aufbau:</span> Els orbitals s'omplen progressivament en ordre creixent d'energia (n+l). L'últim electró afegit determina les propietats mecano-quàntiques.`;
+                noteBox.className = "bg-blue-50 border border-blue-200 rounded-lg p-2 text-[11px] text-blue-900 leading-tight shrink-0";
+            }
+
+            const counts = calculateElectronCounts(currentZ);
+
+            let activeSublevel = null;
+            let nextSublevel = null;
+
+            for (let i = 0; i < SUBLEVELS.length; i++) {
+                const sub = SUBLEVELS[i];
+                if (counts[sub.id] > 0) activeSublevel = sub;
+                if (counts[sub.id] < sub.cap && !nextSublevel) nextSublevel = sub;
+            }
+            if (!activeSublevel) activeSublevel = SUBLEVELS[0];
+
+            SUBLEVELS.forEach(sub => {
+                const count = counts[sub.id];
+                const numBoxes = sub.boxes;
+
+                for (let i = 0; i < numBoxes; i++) {
+                    const boxEl = document.getElementById(`box-${sub.id}-${i}`);
+                    boxEl.innerHTML = '';
+                    boxEl.classList.remove('active-fill');
+
+                    let arrows = '';
+                    if (count > i) arrows += '↑';
+                    if (count > numBoxes + i) arrows += '↓';
+
+                    if (arrows.length > 0) {
+                        boxEl.innerHTML = `<span class="${arrows.length === 2 ? 'tracking-tighter' : ''}">${arrows}</span>`;
+                    }
+
+                    if (sub.id === activeSublevel.id && count > 0) {
+                        boxEl.classList.add('active-fill');
+                    }
+                }
+            });
+
+            // Números quàntics
+            if (activeSublevel) {
+                const count = counts[activeSublevel.id];
+                const numBoxes = activeSublevel.boxes;
+                const l = activeSublevel.l;
+
+                let mlVal = 0;
+                let msVal = "+½";
+
+                if (count <= numBoxes) {
+                    const boxIdx = Math.max(0, count - 1);
+                    mlVal = boxIdx - l;
+                    msVal = "+½";
+                } else {
+                    const boxIdx = count - numBoxes - 1;
+                    mlVal = boxIdx - l;
+                    msVal = "-½";
+                }
+
+                document.getElementById('nq-n').innerText = activeSublevel.n;
+                document.getElementById('nq-l').innerText = `${l} (${activeSublevel.type})`;
+                document.getElementById('nq-ml').innerText = mlVal > 0 ? `+${mlVal}` : mlVal;
+                document.getElementById('nq-ms').innerText = msVal;
+            }
+
+            // Configuració electrònica
+            let configFullStr = "";
+            SUBLEVELS.forEach(sub => {
+                if (counts[sub.id] > 0) {
+                    configFullStr += `${sub.id}<sup>${counts[sub.id]}</sup> `;
+                }
+            });
+            document.getElementById('config-text').innerHTML = configFullStr || "1s⁰";
+
+            let nobleMatch = null;
+            for (let i = NOBLE_GASES.length - 1; i >= 0; i--) {
+                if (currentZ > NOBLE_GASES[i].z) {
+                    nobleMatch = NOBLE_GASES[i];
+                    break;
+                }
+            }
+
+            if (nobleMatch) {
+                const nobleCounts = calculateElectronCounts(nobleMatch.z);
+                let configShortStr = `[${nobleMatch.s}] `;
+                SUBLEVELS.forEach(sub => {
+                    const diff = counts[sub.id] - nobleCounts[sub.id];
+                    if (diff > 0) {
+                        configShortStr += `${sub.id}<sup>${diff}</sup> `;
+                    }
+                });
+                document.getElementById('config-short').innerHTML = configShortStr;
+            } else {
+                document.getElementById('config-short').innerHTML = configFullStr;
+            }
+
+            // Posicionament de la Línia Vermella
+            positionLaserOnSublevel(activeSublevel.id, nextSublevel ? nextSublevel.id : 'Fi');
+
+            document.querySelectorAll('.pt-element').forEach(el => el.classList.remove('selected'));
+            const selectedPtCell = document.getElementById(`pt-elem-${currentZ}`);
+            if (selectedPtCell) selectedPtCell.classList.add('selected');
+        }
+
+        function positionLaserOnSublevel(subId, nextSubId) {
+            const targetRow = document.getElementById(`sublevel-row-${subId}`);
+            const container = document.getElementById('diagram-container');
+            if (targetRow && container) {
+                const rowRect = targetRow.getBoundingClientRect();
+                const containerRect = container.getBoundingClientRect();
+                const relativeTop = (rowRect.top - containerRect.top) + (rowRect.height / 2);
+                
+                const laserLine = document.getElementById('laser-line');
+                laserLine.style.top = `${relativeTop}px`;
+
+                document.getElementById('badge-curr').innerText = subId;
+                document.getElementById('badge-next').innerText = nextSubId || 'Fi';
+            }
+        }
+
+        function selectSublevelDirectly(subId) {
+            const sub = SUBLEVELS.find(s => s.id === subId);
+            if (sub && sub.firstZ) {
+                setZ(sub.firstZ);
+            }
+        }
+
+        function setZ(z) {
+            currentZ = Math.max(1, Math.min(118, z));
+            updateSimulation();
+        }
+
+        function changeZ(delta) {
+            setZ(currentZ + delta);
+        }
+
+        function setMode(newMode) {
+            mode = newMode;
+            document.getElementById('btn-mode-aufbau').className = mode === 'aufbau' ? 
+                'px-2 py-1 rounded-md font-medium transition-colors bg-white text-blue-600 shadow-sm' : 
+                'px-2 py-1 rounded-md font-medium text-slate-600 hover:text-slate-900 transition-colors';
+            
+            document.getElementById('btn-mode-real').className = mode === 'real' ? 
+                'px-2 py-1 rounded-md font-medium transition-colors bg-white text-blue-600 shadow-sm' : 
+                'px-2 py-1 rounded-md font-medium text-slate-600 hover:text-slate-900 transition-colors';
+
+            updateSimulation();
+        }
+
+        function togglePlay() {
+            isPlaying = !isPlaying;
+            const btnPlay = document.getElementById('btn-play');
+            const playIcon = document.getElementById('play-icon');
+
+            if (isPlaying) {
+                playIcon.innerText = "⏸";
+                btnPlay.classList.replace('bg-blue-600', 'bg-amber-600');
+                btnPlay.classList.replace('hover:bg-blue-700', 'hover:bg-amber-700');
+
+                playInterval = setInterval(() => {
+                    if (currentZ >= 118) {
+                        currentZ = 1;
+                    } else {
+                        currentZ++;
+                    }
+                    updateSimulation();
+                }, 600);
+            } else {
+                playIcon.innerText = "▶";
+                btnPlay.classList.replace('bg-amber-600', 'bg-blue-600');
+                btnPlay.classList.replace('hover:bg-amber-700', 'hover:bg-blue-700');
+                clearInterval(playInterval);
+            }
+        }
+    </script>
+</body>
+</html>
